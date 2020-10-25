@@ -7,18 +7,20 @@ globals
   beta-n               ;; The average number of new secondary infections per infected this tick
   gamma                ;; The average number of new recoveries per infected this tick
   r0                   ;; The number of secondary infections that arise due to a single infective introduced in a wholly susceptible population
+  max-infection-length
+  immunity-length
 ]
 
 turtles-own
 [
   infected?                 ;; If true, the person is infected.
+  infected-forever?
+  immunity?
+  immunity-remaining
   turtle-type               ;; Which type a turtle is, people or animal.
-  travel-rate
   human-infect-probability
   animal-infect-probability
-  mortality-rate
-  reproduction-rate
-  lifetime
+  infection-length
 ]
 
 ;;TO-DO - CITY EXPANDING
@@ -40,6 +42,11 @@ end
 
 to setup-globals
 
+  ;;;set max-infection-length 24 * 7
+  set max-infection-length 24 * max-infection-length-days
+  ;;;set immunity-length 24 * 14
+  set immunity-length 24 * immunity-length-days
+
   set city patches with [member? patch pxcor pycor get-initial-city initial-city-radius]
   ask city [ set pcolor gray ]
 
@@ -49,7 +56,7 @@ end
 
 to-report get-initial-city [radius]
   let patchesList []
-  ask patch 0 0
+  ask patch max-pxcor max-pycor
   [
     ask patches in-radius radius
     [
@@ -60,6 +67,8 @@ to-report get-initial-city [radius]
   report patchesList
 end
 
+;; TODO fazer a movimentação
+
 ;; Create initial-people number of people.
 ;; Those that live on the left are squares; those on the right, circles.
 to setup-people
@@ -68,15 +77,13 @@ to setup-people
       setxy [pxcor] of random-patch [pycor] of random-patch
       set turtle-type "person"
       set infected? false
+      set infected-forever? false
+      set immunity? false
       set shape "person"
 
-      set travel-rate human-travel-rate
       set human-infect-probability human-probability-to-infect-human
       set animal-infect-probability human-probability-to-infect-animal
-      set mortality-rate human-mortality-rate
-      set reproduction-rate human-reproduction-rate
-      set lifetime human-max-lifetime
-
+      set infection-length 0
 
       assign-color
       ]
@@ -86,21 +93,22 @@ to setup-people
       setxy [pxcor] of random-patch [pycor] of random-patch
       set turtle-type "animal"
       set infected? false
+      set infected-forever? false
+      set immunity? false
+      set shape "cow"
 
-      set travel-rate animal-travel-rate
       set human-infect-probability animal-probability-to-infect-human
       set animal-infect-probability animal-probability-to-infect-animal
-      set mortality-rate animal-mortality-rate
-      set reproduction-rate animal-reproduction-rate
-      set lifetime animal-max-lifetime
+      set infection-length 0
 
-      set shape "cow"
-      if (random-float 100 < 5) [ set infected? true]
+      if (random-float 1 < initial-animals-infected)
+      [
+        set infected? true
+        set infected-forever? true
+      ]
 
       assign-color
       ]
-
-    if links? [ make-network ]
 end
 
 ;; red is an infected person
@@ -114,13 +122,6 @@ to assign-color ;; turtle procedure
 end
 
 
-to make-network
-  ask turtles
-  [
-    create-links-with turtles-on neighbors
-  ]
-end
-
 
 ;;;
 ;;; GO PROCEDURES
@@ -129,28 +130,41 @@ end
 
 to go
 
-    ;;if all? turtles [ not infected? ]
-    ;;[ stop ]
+  ;;if all? turtles [ not infected? ]
+  ;;[ stop ]
 
-    ask turtles [move]
+  ask turtles [ move ]
 
-    ask turtles
-    [ assign-color]
+  ask turtles [
+    ifelse immunity-remaining > 0
+    [set immunity-remaining (immunity-remaining - 1)]
+    [set immunity? false]
+  ]
+  ask turtles [ if infected? [ recover ]]
+
+  ask turtles [if infected? [ set infection-length (infection-length + 1) ]]
+  ask turtles [ if infected? [ infect ] ]
+
+  ask turtles[ assign-color]
+
+  if mouse-down? [
+    ask patch (round mouse-xcor) (round mouse-ycor) [
+      if member? self city [set pcolor green]
+      if member? self forest [set pcolor gray]
+
+      set city patches with[pcolor = gray]
+      set forest patches with[pcolor = green]
+    ]
+  ]
 
   tick
 end
 
 
 to move  ;; turtle procedure
-  ;;if travel?
-  ;;[
-  ;;  if random 100 < (travel-tendency)
-  ;;  [ set xcor (- xcor) ]
-  ;;]
-
   if turtle-type = "person"
   [
-    ifelse member? patch-here city ;; and on city patch
+    if member? patch-here city ;; and on city patch
     [
       set angle random-float 360
       let new-patch patch-at-heading-and-distance angle 1
@@ -159,8 +173,14 @@ to move  ;; turtle procedure
         move-to new-patch
       ]
     ]
-    [ ;; if live in city and is at forest
-      ;; TO-DO
+    if member? patch-here forest ;; and on city patch
+    [
+      set angle random-float 360
+      let new-patch patch-at-heading-and-distance angle 1
+      if new-patch != nobody and member? new-patch city
+      [
+        move-to new-patch
+      ]
     ]
   ]
 
@@ -168,6 +188,12 @@ to move  ;; turtle procedure
   [ ;; in forest
     ifelse member? patch-here city  ;; and on city patch
     [
+      set angle random-float 360
+      let new-patch patch-at-heading-and-distance angle 1
+      if new-patch != nobody and not member? new-patch city
+      [
+        move-to new-patch
+      ]
     ]
     [
       set angle random-float 360
@@ -192,23 +218,36 @@ to infect  ;; turtle procedure
     [
        ask nearby-uninfected
        [
-           ifelse link-neighbor? caller
+           if not immunity?
            [
-             if random 100 < infection-chance * 2 ;; twice as likely to infect a linked person
+             ifelse turtle-type = "person"
              [
-               set infected? true
+               if (random-float 1 < [human-infect-probability] of caller) ;; twice as likely to infect a linked person
+               [
+                 set infected? true
+                 set infection-length 0
+               ]
              ]
-           ]
-           [
-             if random 100 < infection-chance
              [
-               set infected? true
+               if (random-float 1 < [animal-infect-probability] of caller)
+               [
+                 set infected? true
+                 set infection-length 0
+               ]
              ]
-           ]
+          ]
        ]
-
     ]
 
+end
+
+to recover
+  if infection-length = max-infection-length and not infected-forever?
+  [
+    set infected? false
+    set immunity? true
+    set immunity-remaining immunity-length
+  ]
 end
 
 ; Copyright 2011 Uri Wilensky.
@@ -242,10 +281,10 @@ hours
 30.0
 
 BUTTON
-335
-600
-418
-633
+410
+375
+493
+408
 setup
 setup
 NIL
@@ -259,10 +298,10 @@ NIL
 1
 
 BUTTON
-439
-600
-522
-633
+505
+375
+588
+408
 go
 go
 T
@@ -276,15 +315,15 @@ NIL
 0
 
 SLIDER
-18
-22
-253
-55
+15
+65
+290
+98
 initial-people
 initial-people
 10
 100
-55.0
+40.0
 5
 1
 NIL
@@ -292,9 +331,9 @@ HORIZONTAL
 
 PLOT
 15
-675
-278
-818
+420
+405
+563
 Populations
 hours
 # people
@@ -306,86 +345,19 @@ true
 true
 "" ""
 PENS
-"Infected" 1.0 0 -2674135 true "" "plot count turtles with [ (infected? and turtle-type == \"person\")]"
-"Not Infected" 1.0 0 -10899396 true "" "plot count turtles with [ not infected? and turtle-type == \"person\"]"
+"Infected" 1.0 0 -2674135 true "" "plot count turtles with [ (infected? and turtle-type = \"person\")]"
+"Not Infected" 1.0 0 -10899396 true "" "plot count turtles with [ not infected? and turtle-type = \"person\"]"
 
 SLIDER
-10
-540
-278
-573
-infection-chance
-infection-chance
-10
-100
-50.0
-5
-1
-NIL
-HORIZONTAL
-
-SWITCH
-191
-580
-294
-613
-links?
-links?
-1
-1
--1000
-
-SLIDER
-11
-580
-183
-613
-intra-mobility
-intra-mobility
-0
-1
-0.4
-0.1
-1
-NIL
-HORIZONTAL
-
-SWITCH
-192
-622
-295
-655
-travel?
-travel?
-1
-1
--1000
-
-SLIDER
-10
-621
-182
-654
-travel-tendency
-travel-tendency
-0
-1
-1.0
-.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-315
-20
-555
-53
+310
+65
+585
+98
 initial-animals
 initial-animals
 10
 100
-40.0
+20.0
 5
 1
 NIL
@@ -393,164 +365,29 @@ HORIZONTAL
 
 SLIDER
 15
-410
-280
-443
+310
+290
+343
 initial-city-radius
 initial-city-radius
 0
-10
-7.5
+30
+26.0
 0.5
 1
 NIL
 HORIZONTAL
 
 SLIDER
-20
-65
-255
-98
-human-travel-rate
-human-travel-rate
-0
-1
-0.2
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-315
-65
-555
-98
-animal-travel-rate
-animal-travel-rate
-0
-1
-0.34
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-20
-110
-257
-143
+15
+100
+290
+133
 human-probability-to-infect-human
 human-probability-to-infect-human
 0
 1
-0.1
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-315
-110
-552
-143
-animal-probability-to-infect-human
-animal-probability-to-infect-human
-0
-1
-1.0
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-315
-155
-552
-188
-animal-probability-to-infect-animal
-animal-probability-to-infect-animal
-0
-1
-0.25
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-20
-160
-257
-193
-human-probability-to-infect-animal
-human-probability-to-infect-animal
-0
-1
-0.35
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-20
-210
-255
-243
-human-mortality-rate
-human-mortality-rate
-0
-1
-0.35
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-315
-210
-550
-243
-animal-mortality-rate
-animal-mortality-rate
-0
-1
-0.36
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-315
-260
-550
-293
-animal-reproduction-rate
-animal-reproduction-rate
-0
-1
-0.42
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-20
-255
-255
-288
-human-reproduction-rate
-human-reproduction-rate
-0
-1
-0.39
+0.04
 0.01
 1
 NIL
@@ -558,9 +395,54 @@ HORIZONTAL
 
 SLIDER
 310
-410
-550
-443
+100
+585
+133
+animal-probability-to-infect-human
+animal-probability-to-infect-human
+0
+1
+0.09
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+310
+135
+585
+168
+animal-probability-to-infect-animal
+animal-probability-to-infect-animal
+0
+1
+0.05
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+15
+135
+290
+168
+human-probability-to-infect-animal
+human-probability-to-infect-animal
+0
+1
+0.03
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+310
+310
+585
+343
 urban-growth-rate
 urban-growth-rate
 0
@@ -572,31 +454,115 @@ NIL
 HORIZONTAL
 
 SLIDER
-20
-310
-255
-343
-human-max-lifetime
-human-max-lifetime
-10
-200
-54.0
+15
+220
+290
+253
+max-infection-length-days
+max-infection-length-days
+1
+120
+7.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-315
-315
-550
-348
-animal-max-lifetime
-animal-max-lifetime
-10
-200
-89.0
+310
+220
+585
+253
+immunity-length-days
+immunity-length-days
 1
+120
+14.0
+1
+1
+NIL
+HORIZONTAL
+
+TEXTBOX
+20
+25
+170
+51
+Human
+24
+0.0
+1
+
+TEXTBOX
+315
+30
+465
+56
+Animal
+24
+0.0
+1
+
+TEXTBOX
+20
+185
+170
+211
+Infection
+24
+0.0
+1
+
+TEXTBOX
+15
+275
+165
+301
+City
+24
+0.0
+1
+
+TEXTBOX
+15
+385
+165
+411
+Graphs
+24
+0.0
+1
+
+PLOT
+15
+580
+405
+730
+Animals
+hours
+animals
+0.0
+364.0
+0.0
+100.0
+true
+false
+"" ""
+PENS
+"Infected" 1.0 0 -8053223 true "" "plot count turtles with [ (infected? and turtle-type = \"animal\")]"
+"Not Infected" 1.0 0 -15040220 true "" "plot count turtles with [ (not infected? and turtle-type = \"animal\")]"
+
+SLIDER
+310
+175
+585
+208
+initial-animals-infected
+initial-animals-infected
+0
+1
+0.1
+0.01
 1
 NIL
 HORIZONTAL
