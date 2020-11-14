@@ -323,30 +323,30 @@ initial-people
 initial-people
 10
 100
-40.0
+20.0
 5
 1
 NIL
 HORIZONTAL
 
 PLOT
-15
-420
-405
-563
+5
+520
+1130
+663
 Populations
 hours
-# people
+% people
 0.0
-10.0
+10000.0
 0.0
 100.0
 true
 true
 "" ""
 PENS
-"Infected" 1.0 0 -2674135 true "" "plot count turtles with [ (infected? and turtle-type = \"person\")]"
-"Not Infected" 1.0 0 -10899396 true "" "plot count turtles with [ not infected? and turtle-type = \"person\"]"
+"Infected" 1.0 0 -2674135 true "" "plot ((count turtles with [ (infected? and turtle-type = \"person\")]) / (initial-people)) * 100 "
+"Not Infected" 1.0 0 -10899396 true "" "plot ((count turtles with [ not infected? and turtle-type = \"person\"]) / (initial-people)) * 100 "
 
 SLIDER
 310
@@ -357,7 +357,7 @@ initial-animals
 initial-animals
 10
 100
-20.0
+15.0
 5
 1
 NIL
@@ -372,7 +372,7 @@ initial-city-radius
 initial-city-radius
 0
 30
-26.0
+22.5
 0.5
 1
 NIL
@@ -387,7 +387,7 @@ human-probability-to-infect-human
 human-probability-to-infect-human
 0
 1
-0.04
+0.12
 0.01
 1
 NIL
@@ -402,7 +402,7 @@ animal-probability-to-infect-human
 animal-probability-to-infect-human
 0
 1
-0.09
+0.08
 0.01
 1
 NIL
@@ -417,7 +417,7 @@ animal-probability-to-infect-animal
 animal-probability-to-infect-animal
 0
 1
-0.05
+0.09
 0.01
 1
 NIL
@@ -432,7 +432,7 @@ human-probability-to-infect-animal
 human-probability-to-infect-animal
 0
 1
-0.03
+0.13
 0.01
 1
 NIL
@@ -447,7 +447,7 @@ urban-growth-rate
 urban-growth-rate
 0
 1
-0.0
+0.76
 0.01
 1
 NIL
@@ -462,7 +462,7 @@ max-infection-length-days
 max-infection-length-days
 1
 120
-7.0
+10.0
 1
 1
 NIL
@@ -477,7 +477,7 @@ immunity-length-days
 immunity-length-days
 1
 120
-14.0
+71.0
 1
 1
 NIL
@@ -535,9 +535,9 @@ Graphs
 
 PLOT
 15
-580
+810
 405
-730
+960
 Animals
 hours
 animals
@@ -561,7 +561,7 @@ initial-animals-infected
 initial-animals-infected
 0
 1
-0.1
+0.15
 0.01
 1
 NIL
