@@ -26,7 +26,7 @@ turtles-own
 ;;TO-DO - CITY EXPANDING
 patches-own
 [
-  resistence
+  changed
 ]
 
 ;;;
@@ -52,6 +52,8 @@ to setup-globals
 
   set forest patches with [not member? patch pxcor pycor get-initial-city initial-city-radius]
   ask forest [ set pcolor green ]
+
+  ask patches [ set changed false ]
 end
 
 to-report get-initial-city [radius]
@@ -122,11 +124,9 @@ to assign-color ;; turtle procedure
 end
 
 
-
 ;;;
 ;;; GO PROCEDURES
 ;;;
-
 
 to go
 
@@ -147,19 +147,57 @@ to go
 
   ask turtles[ assign-color]
 
-  if mouse-down? [
-    ask patch (round mouse-xcor) (round mouse-ycor) [
-      if member? self city [set pcolor green]
-      if member? self forest [set pcolor gray]
-
-      set city patches with[pcolor = gray]
-      set forest patches with[pcolor = green]
-    ]
-  ]
-
   tick
 end
 
+
+
+to draw-city
+  let currPatch patch (round mouse-xcor) (round mouse-ycor)
+  if mouse-down? [
+    ask currPatch [
+      if not changed [
+
+        if member? self forest [
+          set pcolor gray
+        ]
+
+        ask neighbors4 [
+            set changed false
+          ]
+
+        set city patches with[pcolor = gray]
+        set forest patches with[pcolor = green]
+
+        set changed true
+      ]
+    ]
+  ]
+
+end
+
+to draw-forest
+  let currPatch patch (round mouse-xcor) (round mouse-ycor)
+  if mouse-down? [
+    ask currPatch [
+      if not changed [
+
+        if member? self city [
+          set pcolor green
+        ]
+
+        ask neighbors4 [
+          set changed false
+        ]
+        set city patches with[pcolor = gray]
+        set forest patches with[pcolor = green]
+
+        set changed true
+      ]
+    ]
+  ]
+
+end
 
 to move  ;; turtle procedure
   if turtle-type = "person"
@@ -254,13 +292,13 @@ end
 ; See Info tab for full copyright and license.
 @#$#@#$#@
 GRAPHICS-WINDOW
-646
-27
-1129
-511
+640
+25
+1128
+514
 -1
 -1
-19.0
+19.2
 1
 10
 1
@@ -281,10 +319,10 @@ hours
 30.0
 
 BUTTON
-410
-375
-493
-408
+365
+315
+448
+348
 setup
 setup
 NIL
@@ -298,10 +336,10 @@ NIL
 1
 
 BUTTON
-505
-375
-588
-408
+480
+315
+563
+348
 go
 go
 T
@@ -321,16 +359,16 @@ SLIDER
 98
 initial-people
 initial-people
-10
+1
 100
-20.0
-5
+60.0
+1
 1
 NIL
 HORIZONTAL
 
 PLOT
-5
+15
 520
 1130
 663
@@ -338,7 +376,7 @@ Populations
 hours
 % people
 0.0
-10000.0
+100.0
 0.0
 100.0
 true
@@ -355,10 +393,10 @@ SLIDER
 98
 initial-animals
 initial-animals
-10
+1
 100
-15.0
-5
+9.0
+1
 1
 NIL
 HORIZONTAL
@@ -372,7 +410,7 @@ initial-city-radius
 initial-city-radius
 0
 30
-22.5
+17.0
 0.5
 1
 NIL
@@ -439,21 +477,6 @@ NIL
 HORIZONTAL
 
 SLIDER
-310
-310
-585
-343
-urban-growth-rate
-urban-growth-rate
-0
-1
-0.76
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
 15
 220
 290
@@ -462,7 +485,7 @@ max-infection-length-days
 max-infection-length-days
 1
 120
-10.0
+7.0
 1
 1
 NIL
@@ -477,7 +500,7 @@ immunity-length-days
 immunity-length-days
 1
 120
-71.0
+21.0
 1
 1
 NIL
@@ -525,9 +548,9 @@ City
 
 TEXTBOX
 15
-385
+480
 165
-411
+506
 Graphs
 24
 0.0
@@ -535,22 +558,22 @@ Graphs
 
 PLOT
 15
-810
-405
-960
+675
+1130
+825
 Animals
 hours
-animals
+% animals
 0.0
-364.0
+100.0
 0.0
 100.0
 true
-false
+true
 "" ""
 PENS
-"Infected" 1.0 0 -8053223 true "" "plot count turtles with [ (infected? and turtle-type = \"animal\")]"
-"Not Infected" 1.0 0 -15040220 true "" "plot count turtles with [ (not infected? and turtle-type = \"animal\")]"
+"Infected" 1.0 0 -8053223 true "" "plot (count turtles with [ (infected? and turtle-type = \"animal\")]  / (initial-animals)) * 100 "
+"Not Infected" 1.0 0 -15040220 true "" "plot (count turtles with [ (not infected? and turtle-type = \"animal\")] / (initial-animals)) * 100 "
 
 SLIDER
 310
@@ -561,11 +584,45 @@ initial-animals-infected
 initial-animals-infected
 0
 1
-0.15
+0.4
 0.01
 1
 NIL
 HORIZONTAL
+
+BUTTON
+480
+370
+565
+403
+draw city
+draw-city
+T
+1
+T
+PATCH
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+365
+370
+450
+403
+draw forest
+draw-forest
+T
+1
+T
+PATCH
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
